@@ -30,15 +30,15 @@ public class ServerServiceImpl implements ServerService {
     ServerRepository serverRepository;
     @Override
     public AllocationResultDTO allocateOrCreateServer(AllocationRequestDTO allocationRequestDTO)throws InvalidMemoryRequestException {
-        validateRequest(allocationRequestDTO);
+        validateRequest(allocationRequestDTO.getMemoryGb());
         AllocationResultDTO resultDTO = findOrCreateBestFitServer(allocationRequestDTO.getMemoryGb());
         Server bestFit = allocateToServerWithLock(resultDTO.getServer().getId(), allocationRequestDTO.getMemoryGb());
 
         return new AllocationResultDTO(bestFit.convertToDTO(), resultDTO.isNewServerCreated());
     }
 
-    private void validateRequest(AllocationRequestDTO allocationRequestDTO)throws InvalidMemoryRequestException {
-        if(allocationRequestDTO.getMemoryGb()<=0 || allocationRequestDTO.getMemoryGb()>100)
+    private void validateRequest(int memoryGB)throws InvalidMemoryRequestException {
+        if(memoryGB<=0 ||memoryGB>100)
             throw new InvalidMemoryRequestException("Invalid Memory request, must be between 1-100");
     }
 
@@ -62,7 +62,7 @@ public class ServerServiceImpl implements ServerService {
         {
             if(server.getAvailableMemory() >= requestedGB)
             {
-                if(bestFit==null || bestFit.getAvailableMemory()>=server.getAvailableMemory())
+                if(bestFit==null || bestFit.getAvailableMemory()>server.getAvailableMemory())
                     bestFit=server;
             }
         }
@@ -91,7 +91,7 @@ public class ServerServiceImpl implements ServerService {
 
     @Override
     public ServerDTO addServer(ServerCreationDTO serverDTO) throws InvalidMemoryRequestException {
-        validateServerDTO(serverDTO);
+        validateRequest(serverDTO.getAvailableMemory());
         Server server = new Server(0,serverDTO.getAvailableMemory(),ServerStatus.CREATED);
         serverRepository.save(server);
         activateServerAfterDelay(server);
@@ -101,6 +101,7 @@ public class ServerServiceImpl implements ServerService {
     @Async
     public void activateServerAfterDelay(Server server) {
         try {
+            // this is based on the documentation
             TimeUnit.SECONDS.sleep(DELAY_TIME);
             if (server != null) {
                 server.setStatus(ServerStatus.ACTIVE);
@@ -121,9 +122,5 @@ public class ServerServiceImpl implements ServerService {
             DTOs.add(s.convertToDTO());
         return DTOs;
     }
-    private void validateServerDTO(ServerCreationDTO serverDTO) throws InvalidMemoryRequestException {
-        if(serverDTO.getAvailableMemory()<=0 && serverDTO.getAvailableMemory()>=100)
-            throw new InvalidMemoryRequestException("Invalid Memory request, must be between 1-100");
 
-    }
 }
