@@ -42,7 +42,7 @@ public class ServerController {
     public ResponseEntity<List<ServerDTO>> getAllServers()
     {
         List<ServerDTO> result = serverService.getAllServers();
-         return ResponseEntity.status(HttpStatus.CREATED).body(result);
+         return ResponseEntity.status(HttpStatus.OK).body(result);
     }
 
 }
