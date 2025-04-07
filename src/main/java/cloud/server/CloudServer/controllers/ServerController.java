@@ -26,7 +26,6 @@ public class ServerController {
     {
         AllocationResultDTO result = serverService.allocateOrCreateServer(allocationRequestDTO);
         ServerDTO dto = result.getServer();
-        System.out.println(result.isNewServerCreated());
         return ResponseEntity
                 .status(result.isNewServerCreated() ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(dto);
