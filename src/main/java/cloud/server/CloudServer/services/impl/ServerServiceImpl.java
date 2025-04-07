@@ -29,7 +29,7 @@ public class ServerServiceImpl implements ServerService {
     @Autowired
     ServerRepository serverRepository;
     @Override
-    public AllocationResultDTO allocateOrCreateServer(AllocationRequestDTO allocationRequestDTO)throws InvalidMemoryRequestException {
+    public  AllocationResultDTO allocateOrCreateServer(AllocationRequestDTO allocationRequestDTO)throws InvalidMemoryRequestException {
         validateRequest(allocationRequestDTO.getMemoryGb());
         AllocationResultDTO resultDTO = findOrCreateBestFitServer(allocationRequestDTO.getMemoryGb());
         Server bestFit = allocateToServerWithLock(resultDTO.getServer().getId(), allocationRequestDTO.getMemoryGb());
@@ -42,7 +42,7 @@ public class ServerServiceImpl implements ServerService {
             throw new InvalidMemoryRequestException("Invalid Memory request, must be between 1-100");
     }
 
-    private AllocationResultDTO findOrCreateBestFitServer(int memoryRequired) {
+    private synchronized AllocationResultDTO findOrCreateBestFitServer(int memoryRequired) {
         List<Server> activeServers = serverRepository.findAllByStatus(ServerStatus.ACTIVE);
         Server bestFit = chooseBestFit(activeServers, memoryRequired);
         boolean newServerChecker =false;
@@ -50,6 +50,7 @@ public class ServerServiceImpl implements ServerService {
         if (bestFit == null) {
             newServerChecker=true;
             bestFit = new Server();
+            serverRepository.save(bestFit);
             activateServerAfterDelay(bestFit);
         }
         return new AllocationResultDTO(bestFit.convertToDTO(),newServerChecker);
