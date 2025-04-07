@@ -33,6 +33,7 @@ public class ServerServiceImpl implements ServerService {
         validateRequest(allocationRequestDTO);
         AllocationResultDTO resultDTO = findOrCreateBestFitServer(allocationRequestDTO.getMemoryGb());
         Server bestFit = allocateToServerWithLock(resultDTO.getServer().getId(), allocationRequestDTO.getMemoryGb());
+
         return new AllocationResultDTO(bestFit.convertToDTO(), resultDTO.isNewServerCreated());
     }
 
@@ -80,6 +81,8 @@ public class ServerServiceImpl implements ServerService {
 
             server.setAllocatedMemory(server.getAllocatedMemory() + memoryGb);
             server.setAvailableMemory(server.getAvailableMemory() - memoryGb);
+            if(server.getAvailableMemory()==0)
+                server.setStatus(ServerStatus.FULL);
             serverRepository.save(server);
             return server;
         }
@@ -92,7 +95,6 @@ public class ServerServiceImpl implements ServerService {
         Server server = new Server(0,serverDTO.getAvailableMemory(),ServerStatus.CREATED);
         serverRepository.save(server);
         activateServerAfterDelay(server);
-
         return server.convertToDTO();
     }
 
