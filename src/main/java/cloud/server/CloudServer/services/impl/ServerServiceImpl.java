@@ -90,7 +90,7 @@ public class ServerServiceImpl implements ServerService {
     public ServerDTO addServer(ServerCreationDTO serverDTO) throws InvalidMemoryRequestException {
         validateServerDTO(serverDTO);
         Server server = new Server(0,serverDTO.getAvailableMemory(),ServerStatus.CREATED);
-        serverRepository.save(server);serverRepository.save(server);
+        serverRepository.save(server);
         activateServerAfterDelay(server);
 
         return server.convertToDTO();
