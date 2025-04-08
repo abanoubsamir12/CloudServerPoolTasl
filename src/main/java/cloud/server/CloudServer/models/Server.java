@@ -25,7 +25,7 @@ public class Server {
         this.id = UUID.randomUUID().toString();
         this.allocatedMemory = 0;
         this.availableMemory = SERVER_CAPACITY;
-        this.status = ServerStatus.CREATED;
+        this.status = ServerStatus.CREATING;
     }
     public String getId() {
         return id;

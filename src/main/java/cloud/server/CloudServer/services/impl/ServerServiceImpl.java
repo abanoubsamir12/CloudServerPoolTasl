@@ -12,14 +12,13 @@ import cloud.server.CloudServer.repositories.ServerRepository;
 import cloud.server.CloudServer.services.ServerService;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
+import java.util.Optional;
+import java.util.concurrent.*;
 
 @Service
 public class ServerServiceImpl implements ServerService {
@@ -28,10 +27,11 @@ public class ServerServiceImpl implements ServerService {
     private final Map<String, Object> serverLocks = new ConcurrentHashMap<>();
     @Autowired
     ServerRepository serverRepository;
+    private final ExecutorService executorService= Executors.newCachedThreadPool();
     @Override
     public  AllocationResultDTO allocateOrCreateServer(AllocationRequestDTO allocationRequestDTO)throws InvalidMemoryRequestException {
         validateRequest(allocationRequestDTO.getMemoryGb());
-        AllocationResultDTO resultDTO = findOrCreateBestFitServer(allocationRequestDTO.getMemoryGb());
+        AllocationResultDTO resultDTO =  findOrCreateBestFitServer(allocationRequestDTO.getMemoryGb());
         Server bestFit = allocateToServerWithLock(resultDTO.getServer().getId(), allocationRequestDTO.getMemoryGb());
 
         return new AllocationResultDTO(bestFit.convertToDTO(), resultDTO.isNewServerCreated());
@@ -42,20 +42,30 @@ public class ServerServiceImpl implements ServerService {
             throw new InvalidMemoryRequestException("Invalid Memory request, must be between 1-100");
     }
 
-    private synchronized AllocationResultDTO findOrCreateBestFitServer(int memoryRequired) {
+    private AllocationResultDTO findOrCreateBestFitServer(int memoryRequired) {
         List<Server> activeServers = serverRepository.findAllByStatus(ServerStatus.ACTIVE);
         Server bestFit = chooseBestFit(activeServers, memoryRequired);
-        boolean newServerChecker =false;
-
-        if (bestFit == null) {
-            newServerChecker=true;
-            bestFit = new Server();
-            serverRepository.save(bestFit);
-            activateServerAfterDelay(bestFit);
+        if (bestFit != null) {
+            return new AllocationResultDTO(bestFit.convertToDTO(),false);
         }
-        return new AllocationResultDTO(bestFit.convertToDTO(),newServerChecker);
-    }
+        synchronized (this) {
+            activeServers = serverRepository.findAllByStatus(ServerStatus.ACTIVE);
+            bestFit = chooseBestFit(activeServers, memoryRequired);
+            if (bestFit != null) {
+                return new AllocationResultDTO(bestFit.convertToDTO(),false);
+            }
+            List<Server> createdServers = serverRepository.findAllByStatus(ServerStatus.CREATING);
+            bestFit = chooseBestFit(createdServers,memoryRequired);
+            if (bestFit != null) {
+                return new AllocationResultDTO(bestFit.convertToDTO(),false);
+            }
 
+            Server newServer = new Server();
+            serverRepository.save(newServer);
+            activateServerAfterDelay(newServer.getId());
+            return new AllocationResultDTO(newServer.convertToDTO(), true);
+        }
+    }
     public Server chooseBestFit(List<Server> activeServers,int requestedGB)
     {
         Server bestFit = null;
@@ -88,36 +98,50 @@ public class ServerServiceImpl implements ServerService {
             return server;
         }
     }
+    private void activateServerAfterDelay(String serverId) {
+        executorService.submit(() -> {
+            try {
+                Thread.sleep(20_000);
+                Optional<Server> optional = serverRepository.findById(serverId);
+                if (optional.isPresent()) {
+                    Server server = optional.get();
+                    server.setStatus(ServerStatus.ACTIVE);
+                    serverRepository.save(server);
+                }
+                else
+                    throw new NullPointerException();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        });
+    }
+
 
 
     @Override
     public ServerDTO addServer(ServerCreationDTO serverDTO) throws InvalidMemoryRequestException {
         validateRequest(serverDTO.getAvailableMemory());
-        Server server = new Server(0,serverDTO.getAvailableMemory(),ServerStatus.CREATED);
+        Server server = new Server(0,serverDTO.getAvailableMemory(),ServerStatus.CREATING);
         serverRepository.save(server);
-        activateServerAfterDelay(server);
+        activateServerAfterDelay(server.getId());
         return server.convertToDTO();
     }
 
-    @Async
-    public void activateServerAfterDelay(Server server) {
-        try {
-            // this is based on the documentation
-            TimeUnit.SECONDS.sleep(DELAY_TIME);
-            if (server != null) {
-                server.setStatus(ServerStatus.ACTIVE);
-                serverRepository.save(server);
-            }
 
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
 
     @Override
     public List<ServerDTO> getAllServers()
     {
         List<Server> list = serverRepository.findAllByStatus(ServerStatus.ACTIVE);
+        List<ServerDTO> DTOs = new ArrayList<>();
+        for(Server s: list)
+            DTOs.add(s.convertToDTO());
+        return DTOs;
+    }
+
+    @Override
+    public List<ServerDTO> getAllCreatedServers() {
+        List<Server> list = serverRepository.findAllByStatus(ServerStatus.CREATING);
         List<ServerDTO> DTOs = new ArrayList<>();
         for(Server s: list)
             DTOs.add(s.convertToDTO());

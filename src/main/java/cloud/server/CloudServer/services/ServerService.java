@@ -4,6 +4,7 @@ import cloud.server.CloudServer.DTOs.AllocationRequestDTO;
 import cloud.server.CloudServer.DTOs.AllocationResultDTO;
 import cloud.server.CloudServer.DTOs.ServerCreationDTO;
 import cloud.server.CloudServer.DTOs.ServerDTO;
+import jakarta.validation.OverridesAttribute;
 
 import java.util.List;
 
@@ -11,5 +12,7 @@ public interface ServerService {
     public AllocationResultDTO allocateOrCreateServer(AllocationRequestDTO allocationRequestDTO);
     public ServerDTO addServer(ServerCreationDTO serverDTO);
     public List<ServerDTO> getAllServers();
+
+    public List<ServerDTO> getAllCreatedServers();
 
 }

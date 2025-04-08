@@ -43,5 +43,11 @@ public class ServerController {
         List<ServerDTO> result = serverService.getAllServers();
          return ResponseEntity.status(HttpStatus.OK).body(result);
     }
+    @GetMapping(value =  "/allCreated")
+    public ResponseEntity<List<ServerDTO>> getAllCreatedServers()
+    {
+        List<ServerDTO> result = serverService.getAllCreatedServers();
+        return ResponseEntity.status(HttpStatus.OK).body(result);
+    }
 
 }
